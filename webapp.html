@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Connect Four with Smarter AI</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background-color: #f9f9f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            font-size: 3em;
+            color: #4CAF50;
+            margin-top: 20px;
+        }
+
+        #message {
+            font-size: 1.5em;
+            margin: 20px;
+        }
+
+        .scoreboard {
+            font-size: 1.2em;
+            margin: 20px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .buttons {
+            margin: 20px;
+        }
+
+        button {
+            font-size: 1.2em;
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        table {
+            border-collapse: collapse;
+            margin: 20px auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        td {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #333;
+            background-color: #eee;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .player1 {
+            background-color: red;
+        }
+
+        .player2 {
+            background-color: yellow;
+        }
+
+        .confetti {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+    </style>
+</head>
+<body>
+<h1>Connect Four</h1>
+<p id="message"></p>
+
+<div class="scoreboard">
+    Player 1 Wins: <span id="player1Wins">0</span> | Player 2 Wins: <span id="player2Wins">0</span>
+</div>
+
+<div class="buttons">
+    <button onclick="setMode('friend')">Play vs Friend</button>
+    <button onclick="setMode('computer')">Play vs Computer</button>
+</div>
+
+<table id="board"></table>
+
+<div class="buttons">
+    <button onclick="init()">Play Again</button>
+</div>
+
+<canvas id="confetti" class="confetti"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti"></script>
+<script>
+const ROWS = 6;
+const COLS = 7;
+let board = [];
+let currentPlayer = 1;
+let gameOver = false;
+let vsComputer = false;
+let player1Wins = 0;
+let player2Wins = 0;
+
+function setMode(mode) {
+    vsComputer = (mode === 'computer');
+    init();
+}
+
+function init() {
+    board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+    currentPlayer = 1;
+    gameOver = false;
+    drawBoard();
+    updateMessage();
+}
+
+function drawBoard() {
+    const table = document.getElementById('board');
+    table.innerHTML = '';
+    for (let r = 0; r < ROWS; r++) {
+        const row = document.createElement('tr');
+        for (let c = 0; c < COLS; c++) {
+            const cell = document.createElement('td');
+            cell.className = board[r][c] === 1 ? 'player1' : board[r][c] === 2 ? 'player2' : '';
+            cell.addEventListener('click', () => handleClick(c));
+            row.appendChild(cell);
+        }
+        table.appendChild(row);
+    }
+}
+
+function handleClick(col) {
+    if (gameOver) return;
+
+    for (let r = ROWS - 1; r >= 0; r--) {
+        if (board[r][col] === 0) {
+            board[r][col] = currentPlayer;
+            break;
+        }
+    }
+
+    drawBoard();
+
+    if (checkWin(currentPlayer)) {
+        document.getElementById('message').innerText = (vsComputer && currentPlayer === 2) ? "Computer wins!" : `Player ${currentPlayer} wins!`;
+        gameOver = true;
+        updateScore();
+        triggerConfetti();
+        return;
+    }
+
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    updateMessage();
+
+    if (vsComputer && currentPlayer === 2 && !gameOver) {
+        setTimeout(computerMove, 500);
+    }
+}
+
+function updateMessage() {
+    if (gameOver) return;
+    document.getElementById('message').innerText = vsComputer
+        ? (currentPlayer === 1 ? "Your turn" : "Computer's turn")
+        : `Player ${currentPlayer}'s turn`;
+}
+
+function updateScore() {
+    if (currentPlayer === 1) {
+        player1Wins++;
+        document.getElementById('player1Wins').innerText = player1Wins;
+    } else {
+        player2Wins++;
+        document.getElementById('player2Wins').innerText = player2Wins;
+    }
+}
+
+function triggerConfetti() {
+    const confettiCanvas = document.getElementById('confetti');
+    confetti.create(confettiCanvas, {
+        resize: true,
+        useWorker: true
+    })({
+        particleCount: 200,
+        spread: 100,
+        origin: { x: 0.5, y: 0.5 }
+    });
+}
+
+function computerMove() {
+    const bestCol = getBestMove();
+    handleClick(bestCol);
+}
+
+function getBestMove() {
+    const scores = Array(COLS).fill(0);
+
+    for (let col = 0; col < COLS; col++) {
+        if (board[0][col] !== 0) {
+            scores[col] = -Infinity;
+            continue;
+        }
+        let row;
+        for (let r = ROWS - 1; r >= 0; r--) {
+            if (board[r][col] === 0) {
+                row = r;
+                break;
+            }
+        }
+
+        board[row][col] = 2; // AI move
+        if (checkWin(2)) {
+            board[row][col] = 0;
+            return col;
+        }
+        board[row][col] = 1; // simulate player's next move
+        if (checkWin(1)) {
+            scores[col] += 100; // prioritize blocking
+        }
+        board[row][col] = 0;
+
+        scores[col] += Math.abs(3 - col); // center preference
+    }
+
+    const maxScore = Math.max(...scores);
+    const bestCols = scores.map((s, i) => s === maxScore ? i : -1).filter(i => i !== -1);
+    return bestCols[Math.floor(Math.random() * bestCols.length)];
+}
+
+function checkWin(player) {
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS - 3; c++) {
+            if (board[r][c] === player && board[r][c+1] === player && board[r][c+2] === player && board[r][c+3] === player)
+                return true;
+        }
+    }
+    for (let r = 0; r < ROWS - 3; r++) {
+        for (let c = 0; c < COLS; c++) {
+            if (board[r][c] === player && board[r+1][c] === player && board[r+2][c] === player && board[r+3][c] === player)
+                return true;
+        }
+    }
+    for (let r = 0; r < ROWS - 3; r++) {
+        for (let c = 0; c < COLS - 3; c++) {
+            if (board[r][c] === player && board[r+1][c+1] === player && board[r+2][c+2] === player && board[r+3][c+3] === player)
+                return true;
+        }
+    }
+    for (let r = 3; r < ROWS; r++) {
+        for (let c = 0; c < COLS - 3; c++) {
+            if (board[r][c] === player && board[r-1][c+1] === player && board[r-2][c+2] === player && board[r-3][c+3] === player)
+                return true;
+        }
+    }
+    return false;
+}
+
+init();
+</script>
+</body>
+</html>
